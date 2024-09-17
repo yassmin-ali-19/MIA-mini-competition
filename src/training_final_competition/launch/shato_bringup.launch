@@ -1,0 +1,19 @@
+<launch>
+
+  <node name="dead_reck" pkg="training_final_competition" type="dead_reckoning_script_shato.py" output="screen" />
+  <node name="cmd_vel_listener" pkg="training_final_competition" type="kin_shato.py" output="screen" />
+
+  <include file="$(find freenect_launch)/launch/freenect.launch">
+    <arg name="depth_registration" value="True" />
+  </include>
+
+  <node name="rosserial_arduino_node" pkg="rosserial_arduino" type="serial_node.py" output="screen">
+    <param name="port" value="/dev/ttyACM1"/>
+    <param name="name" value="imu"/>
+  </node>
+  <node name="rosserial_arduino" pkg="rosserial_arduino" type="serial_node.py" output="screen">
+    <param name="port" value="/dev/ttyACM0"/>
+    <param name="name" value="control"/>
+  </node>
+
+</launch>
