@@ -214,3 +214,6 @@ target_link_libraries(PID ${catkin_LIBRARIES})
 
 add_executable(velocity_test src/tests.cpp)
 target_link_libraries(velocity_test ${catkin_LIBRARIES})
+
+add_executable(navigator src/navigation.cpp)
+target_link_libraries(navigator ${catkin_LIBRARIES})

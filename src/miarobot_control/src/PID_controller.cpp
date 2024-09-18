@@ -22,7 +22,7 @@ namespace stdm = std_msgs;
 namespace nav = nav_msgs;
 namespace chrono = std::chrono;
 
-const float MAX_SPEED = 1;
+const float MAX_SPEED = 0.335;
 
 enum Clamp { NO_CLAMP, CLAMP };
 
@@ -48,10 +48,9 @@ struct AxisRot {
 };
 
 
-
-
 struct FetchData {
     float set_x, set_y, set_theta;
+    float kp, ki, kd;
     tf2::Quaternion q;
     gm::Point p, setPoint;
     gm::Vector3 linear;
@@ -85,6 +84,13 @@ struct FetchData {
         setPoint.z = 0;
         set_theta = normalize_angle(msg->theta);
     }
+
+    void FetchParam(const gm::Vector3::ConstPtr& msg){
+        kp = msg->x;
+        ki = msg->y;
+        kd = msg->z;
+       
+    }
 };
 
 
@@ -115,7 +121,8 @@ public:
     }
 };
 
-void publish_output(const gm::Twist& msg, ros::Publisher& pub) {
+template <typename T>
+void publish_output(const T& msg, ros::Publisher& pub) {
     pub.publish(msg);
 }
 
@@ -156,12 +163,16 @@ geometry_msgs::Point transformToRobotFrame(
     return transformed_point;
 }
 
+float softStart(const float target, const float current, const float factor) {
+    return factor * current + (1 - factor) * target;
+}
+
 
 int main(int argc, char **argv) {
     FetchData data;
     Pid x_pid(1, 0.01, 0.1);
-    Pid y_pid(1, 0.01, 0.1);
-    Pid theta_pid(1, 0.01, 0.1);
+    Pid y_pid(1, 0.01, 10.1);
+    Pid theta_pid(1.0, 0.01, 0.15);
 
     
 
@@ -169,8 +180,9 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh;
     ros::Subscriber sub = nh.subscribe("/odom", 1000, &FetchData::fetch_data, &data);
     ros::Subscriber sub2 = nh.subscribe("/setpoint", 100, &FetchData::FetchPoint, &data);
-    // ros::Subscriber sub3 = nh.subscribe("/set_param", 100, &Pid::fetch, &x_pid);
     ros::Publisher pub = nh.advertise<gm::Twist>("/cmd_vel", 1000);
+    // ros::Subscriber sub3 = nh.subscribe("/set_param", 100, &Pid::fetch, &x_pid);
+    // ros::Publisher pub2 = nh.advertise<stdm::Bool>("/robot_status", 100);
 
     ros::Rate loop_rate(50);
 
@@ -183,6 +195,16 @@ int main(int argc, char **argv) {
         auto x_out = min(MAX_SPEED, x_pid.get_output(set_x, data.linear.x));
         auto y_out = min(MAX_SPEED, y_pid.get_output(set_y, data.linear.y));
         auto theta_out = min(MAX_SPEED, theta_pid.get_output(data.set_theta, rot_rpy.yaw));
+
+        // stdm::Bool state_msg;
+        // if(abs(data.linear.x) < 0.02 && abs(data.linear.y) < 0.02 && abs(data.angular.z) < 0.02) 
+        //     state_msg.data = true;
+        //  else  state_msg.data = false;
+        // publish_output(state_msg, pub2);
+
+
+        x_out = softStart(x_out, data.linear.x, 0.7);
+        y_out = softStart(y_out, data.linear.y, 0.7);
 
         gm::Twist msg;
         msg.angular.x = 0.0;
