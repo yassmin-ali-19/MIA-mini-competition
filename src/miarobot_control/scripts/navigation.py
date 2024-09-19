@@ -19,7 +19,7 @@ def move_robot(pub, x, y, theta):
 
 def robot_navigation():
     rospy.init_node('robot_navigation_node', anonymous=True)
-    setpoint_pub = rospy.Publisher('setpoint_topic', Pose2D, queue_size=10)
+    setpoint_pub = rospy.Publisher('/setpoint', Pose2D, queue_size=10)
     rate = rospy.Rate(10)
 
     x = x_min

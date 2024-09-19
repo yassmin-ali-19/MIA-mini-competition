@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     ros::Subscriber sub = nh.subscribe("/odom", 1000, &Data::fetch_data, &data);
     ros::Publisher pub = nh.advertise<gm::Pose2D>("/setpoint", 100);
 
-    ros::Rate loop_rate(10); // Set a higher rate for responsiveness
+    // ros::Rate loop_rate(10); // Set a higher rate for responsiveness
     WaypointGenerator waypointGen;
     int index = 0;
     bool waiting = false;
@@ -120,8 +120,7 @@ int main(int argc, char **argv) {
         pub.publish(next_pose);
         curr_pose = next_pose; // Update current pose (simulated)
 
-        ros::spinOnce();
-        loop_rate.sleep();
+        ros::spin();
     }
     return 0;
 }
