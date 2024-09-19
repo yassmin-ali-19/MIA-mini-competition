@@ -1,52 +1,92 @@
 #!/usr/bin/env python3
 
-
 import rospy
-from geometry_msgs.msg import Pose2D
+from geometry_msgs.msg import Pose2D, Point
+from nav_msgs.msg import Odometry
+import math
 
+current_point = Point()
+pos_setpoints = []
+neg_setpoints = []
+setpoints = []
+setpoint_index = 0
+direction = 1 
+tolerance = 0.05 
 
-x_min = 0.5
-x_max = 1.5
-y_start = 0.15  # Starting y-position, 15 cm away from the edge
-y_max = 1.7
-y_increment = 0.3
-penalty_zones = [(0, 0), (1.8, 0)]  # Corners as penalty zones
+MOVING = "MOVING"
+ARRIVED = "ARRIVED"
+state = MOVING  
 
-# Function to publish the next setpoint (x, y, theta)
-def move_robot(pub, x, y, theta):
-    setpoint = Pose2D(x=x, y=y, theta=theta)
-    pub.publish(setpoint)
+def generate_setpoints():
+    max_y = 0.6
+    step_x = 0.5
+    step_y = 0.15
+    start_x = 0.45
 
-def robot_navigation():
-    rospy.init_node('robot_navigation_node', anonymous=True)
-    setpoint_pub = rospy.Publisher('/setpoint', Pose2D, queue_size=10)
-    rate = rospy.Rate(10)
+    for y in [i * step_y for i in range(int(max_y / step_y) + 1)]:
+        pos_setpoints.append((start_x, y))
+        pos_setpoints.append((start_x + step_x, y))
+        pos_setpoints.append((start_x, y))
+    
+    for y in [-i * step_y for i in range(1, int(max_y / step_y) + 1)]:
+        neg_setpoints.append((start_x, y))
+        neg_setpoints.append((start_x + step_x, y))
+        neg_setpoints.append((start_x, y))
 
-    x = x_min
-    y = y_start
-    theta = 0.0  
+    global setpoints
+    setpoints = pos_setpoints + neg_setpoints 
 
-    direction = 1 
+def odom_callback(msg):
+    global current_point
+    current_point = msg.pose.pose.position
+
+def is_at_setpoint(target_x, target_y):
+    distance = math.sqrt((target_x - current_point.x)**2 + (target_y - current_point.y)**2)
+    return distance < tolerance
+
+def move_to_next_setpoint(pub):
+    global setpoint_index, direction, state
+
+    target_x, target_y = setpoints[setpoint_index]
+
+    if state == MOVING:
+        setpoint_msg = Pose2D()
+        setpoint_msg.x = target_x
+        setpoint_msg.y = target_y
+        setpoint_msg.theta = 0.0 
+        pub.publish(setpoint_msg)
+
+        if is_at_setpoint(target_x, target_y):
+            rospy.loginfo(f"Reached setpoint {setpoint_index}: ({target_x}, {target_y})")
+            state = ARRIVED  
+
+    elif state == ARRIVED:
+        rospy.sleep(1)  
+
+        setpoint_index += direction
+        if setpoint_index == len(setpoints):
+            direction = -1  
+            setpoint_index = len(setpoints) - 1  
+        elif setpoint_index == -1: 
+            direction = 1  
+            setpoint_index = 0  
+
+        state = MOVING  
+
+def main():
+    rospy.init_node("robot_navigation_node")
+    pub = rospy.Publisher("/setpoint", Pose2D, queue_size=10)
+    rospy.Subscriber("/odom", Odometry, odom_callback)
+
+    generate_setpoints()  
+    rate = rospy.Rate(10)  
 
     while not rospy.is_shutdown():
-        if (x >= x_max and direction == 1) or (x <= x_min and direction == -1):
-            # Increment y and switch direction
-            y += y_increment
-            direction *= -1  # Reverse the direction along x
-            if y > y_max:
-                y = y_start  # If y exceeds the map, reset to start and repeat
-
-        # Move the robot to the next point along x
-        x += direction * 0.1  # Adjust the step size for smooth movement
-
-        # Ensure the robot doesn't enter the penalty zones
-        if not any(zone[0] <= x <= zone[0] + 0.2 and zone[1] <= y <= zone[1] + 0.2 for zone in penalty_zones):
-            move_robot(setpoint_pub, x, y, theta)
-
+        move_to_next_setpoint(pub)
         rate.sleep()
 
 if __name__ == '__main__':
     try:
-        robot_navigation()
+        main()
     except rospy.ROSInterruptException:
         pass

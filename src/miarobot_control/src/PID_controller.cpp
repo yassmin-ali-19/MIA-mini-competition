@@ -19,7 +19,7 @@ namespace stdm = std_msgs;
 namespace nav = nav_msgs;
 namespace chrono = std::chrono;
 
-const float MAX_SPEED = 1;
+const float MAX_SPEED = 0.45;
 
 enum Clamp { NO_CLAMP, CLAMP };
 
@@ -161,9 +161,9 @@ geometry_msgs::Point transformToRobotFrame(
 
 int main(int argc, char **argv) {
     FetchData data;
-    Pid x_pid(1,0.01,0.15);
-    Pid y_pid(1,0.01,0.15);
-    Pid theta_pid(1,0.01,0.15);
+    Pid x_pid(1,0.01,0.1);
+    Pid y_pid(1,0.01,0.1);
+    Pid theta_pid(1,0.01,0.1);
 
     
 
@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
     // ros::Subscriber sub3 = nh.subscribe("/set_param", 100, &Pid::fetch, &x_pid);
     ros::Publisher pub = nh.advertise<gm::Twist>("/cmd_vel", 1000);
 
-    ros::Rate loop_rate(50);
+    ros::Rate loop_rate(20);
 
     while (ros::ok()) {
         gm::Point robot_set_point = transformToRobotFrame(data.setPoint, data.pose);
